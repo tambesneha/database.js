@@ -43,8 +43,7 @@ public class JSONFormatter
 
   public void fatal(String message)
   {
-    if (message != null)
-      content.fatal(message);
+    content.fatal(message);
   }
 
 
@@ -150,7 +149,7 @@ public class JSONFormatter
    {
      String name = "fatal";
      content.add(0,new Object[] {name,true});
-     content.add(new Object[] {"fatal-error",message});
+     content.add(new Object[] {"message",message});
    }
 
     void add(Object[] array)

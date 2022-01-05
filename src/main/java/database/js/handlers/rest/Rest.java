@@ -98,7 +98,7 @@ public class Rest
     catch (Throwable e)
     {
       failed = true;
-      return(error(e,null));
+      return(error(e));
     }
   }
 
@@ -307,7 +307,7 @@ public class Rest
     catch (Throwable e)
     {
       failed = true;
-      return(error(e,null));
+      return(error(e));
     }
 
     JSONFormatter json = new JSONFormatter();
@@ -429,7 +429,7 @@ public class Rest
     catch (Throwable e)
     {
       failed = true;
-      return(error(e,null));
+      return(error(e));
     }
 
     JSONFormatter json = new JSONFormatter();
@@ -460,7 +460,7 @@ public class Rest
     catch (Throwable e)
     {
       failed = true;
-      return(error(e,"failed to disconnect"));
+      return(error(e));
     }
 
     JSONFormatter json = new JSONFormatter();
@@ -955,7 +955,7 @@ public class Rest
     catch (Throwable e)
     {
       failed = true;
-      error(e,null);
+      error(e);
     }
   }
 
@@ -1043,7 +1043,7 @@ public class Rest
     }
     catch (Throwable e)
     {
-      error(e,null);
+      error(e);
       return(defaults);
     }
   }
@@ -1118,6 +1118,17 @@ public class Rest
     }
 
     return(new String(token));
+  }
+
+
+  private String error(Throwable err)
+  {
+    String message = err.getMessage();
+
+    if (message == null)
+      message = "An unexpected error has occured";
+
+    return(error(err,message));
   }
 
 
@@ -1291,7 +1302,7 @@ public class Rest
       }
       catch (Throwable e)
       {
-        rest.error(e,null);
+        rest.error(e);
       }
     }
 
@@ -1316,7 +1327,7 @@ public class Rest
       }
       catch (Throwable e)
       {
-        rest.error(e,null);
+        rest.error(e);
       }
     }
 
@@ -1333,7 +1344,7 @@ public class Rest
       }
       catch (Throwable e)
       {
-        rest.error(e,null);
+        rest.error(e);
       }
     }
   }
