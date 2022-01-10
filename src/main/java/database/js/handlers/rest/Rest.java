@@ -312,6 +312,10 @@ public class Rest
 
     JSONFormatter json = new JSONFormatter();
     json.success(true);
+
+    if (state.session() == null)
+      json.add("connected",false);
+
     return(json.toString());
   }
 
@@ -438,6 +442,9 @@ public class Rest
     json.success(true);
     json.add("type",type);
     json.add("timeout",timeout);
+    json.add("private",privateses);
+    json.add("autocommit",state.session().autocommit());
+    json.add("scope",state.session().scope());
     json.add("session",sesid);
 
     return(json.toString());
@@ -537,7 +544,7 @@ public class Rest
       }
 
       if (payload.has("compact")) compact = payload.getBoolean("compact");
-      if (state.session().statefull() && payload.has("cursor")) curname = payload.getString("cursor");
+      if (state.session().stateful() && payload.has("cursor")) curname = payload.getString("cursor");
 
       String sql = getStatement(payload);
       if (sql == null) return(error("Attribute \"sql\" is missing"));
@@ -639,16 +646,15 @@ public class Rest
       if (returning)
       {
         state.lock();
-        Cursor cursor = state.session().executeQuery(null,sql,bindvalues);
+        Cursor cursor = state.session().executeUpdateWithReturnValues(sql,bindvalues);
         state.unlock();
-
-        state.release();
 
         JSONFormatter json = new JSONFormatter();
 
         String[] columns = state.session().getColumnNames(cursor);
         ArrayList<Object[]> table = state.session().fetch(cursor,0);
 
+        state.release();
         json.success(true);
 
         json.push("rows",ObjectArray);
