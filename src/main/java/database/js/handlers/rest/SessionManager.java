@@ -99,17 +99,7 @@ public class SessionManager
 
   public static boolean remove(String guid)
   {
-    Session session = sessions.remove(guid);
-
-    synchronized(session)
-    {
-      if (session.clients() != 0)
-      {
-        sessions.put(session.guid(),session);
-        return(false);
-      }
-    }
-
+    sessions.remove(guid);
     return(true);
   }
 
@@ -162,6 +152,7 @@ public class SessionManager
     public void run()
     {
       logger.info("SSOReaper started");
+      ArrayList<String> remove = new ArrayList<String>();
 
       try
       {
@@ -171,7 +162,6 @@ public class SessionManager
         {
           Thread.sleep(timeout/4);
           long time = System.currentTimeMillis();
-          ArrayList<String> remove = new ArrayList<String>();
 
           for(Map.Entry<String,PreAuthRecord> entry : preauth.entrySet())
           {
@@ -183,15 +173,15 @@ public class SessionManager
               logger.fine("SSO: "+sso.guid+" timed out");
             }
           }
-
-          for(String guid : remove)
-            preauth.remove(guid);
         }
       }
       catch (Exception e)
       {
         logger.log(Level.SEVERE,e.getMessage(),e);
       }
+
+      for(String guid : remove)
+        preauth.remove(guid);
     }
   }
 
@@ -258,8 +248,7 @@ public class SessionManager
 
             if (time - session.touched() > timeout)
             {
-              session.share();
-              session.disconnect();
+              session.disconnect(true);
               logger.fine("Session: "+session.guid()+" timed out");
             }
           }

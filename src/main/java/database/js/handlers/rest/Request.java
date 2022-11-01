@@ -16,7 +16,6 @@ import java.util.TreeSet;
 import java.util.ArrayList;
 import org.json.JSONObject;
 import org.json.JSONTokener;
-import database.js.config.Config;
 import database.js.database.SQLParser;
 
 
@@ -181,6 +180,7 @@ public class Request
     String sql = rest.getStatement(payload);
     if (sql == null) throw new Exception("Attribute \"sql\" is missing");
 
+    sql = sql.trim();
     if (sql.length() > 6)
     {
       String cmd = sql.substring(0,7).toLowerCase();

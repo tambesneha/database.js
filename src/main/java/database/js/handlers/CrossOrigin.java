@@ -15,6 +15,7 @@ package database.js.handlers;
 import java.net.URL;
 import java.util.TreeSet;
 import java.util.ArrayList;
+import java.util.logging.Logger;
 import database.js.servers.http.HTTPRequest;
 import database.js.servers.http.HTTPResponse;
 import database.js.handlers.rest.JSONFormatter;
@@ -28,8 +29,11 @@ public class CrossOrigin
   private final static ArrayList<String> allowed =
     new ArrayList<String>();
 
+  private final static Logger logger = Logger.getLogger("rest");
+  private final static String methods = "GET, POST, PATCH, DELETE, PUT, OPTIONS, HEAD";
 
-public static void init(String host, ArrayList<String> domains)
+
+  public static void init(String host, ArrayList<String> domains)
   {
     int pos = host.indexOf(':');
     if (pos > 0) host = host.substring(0,pos);
@@ -74,6 +78,7 @@ public static void init(String host, ArrayList<String> domains)
     jfmt.success(false);
     jfmt.add("message","Origin \""+origin+"\" rejected by Cors");
 
+    logger.severe("Origin \""+origin+"\" rejected by Cors");
     return(jfmt.toString());
   }
 
@@ -82,12 +87,14 @@ public static void init(String host, ArrayList<String> domains)
   {
     String mode = request.getHeader("Sec-Fetch-Mode");
     if (mode == null || !mode.equalsIgnoreCase("cors")) return;
+    String method = request.getHeader("Access-Control-Request-Method");
 
     String origin = request.getHeader("Origin");
     response.setHeader("Access-Control-Allow-Headers","*");
-    response.setHeader("Access-Control-Request-Method","*");
     response.setHeader("Access-Control-Request-Headers","*");
     response.setHeader("Access-Control-Allow-Origin",origin);
+    response.setHeader("Access-Control-Request-Method",method);
+    response.setHeader("Access-Control-Allow-Methods",methods);
     response.setHeader("Access-Control-Allow-Credentials","true");
   }
 }

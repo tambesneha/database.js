@@ -30,8 +30,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.concurrent.ConcurrentHashMap;
 import database.js.database.Database.ReturnValueHandle;
 
-import javax.swing.plaf.nimbus.State;
-
 
 public class Session
 {
@@ -150,9 +148,17 @@ public class Session
 
   public synchronized void disconnect()
   {
-    clients--;
+    disconnect(false);
+  }
 
-    if (disconnect(0))
+
+  public synchronized void disconnect(boolean force)
+  {
+    clients--;
+    int exp = 0;
+    if (force) exp = -1;
+
+    if (disconnect(exp))
       SessionManager.remove(guid);
   }
 
@@ -220,9 +226,10 @@ public class Session
 
   private synchronized boolean disconnect(int expected)
   {
+    logger.severe("disconnect expected: "+expected+" clients: "+clients);
     if (expected >= 0 && clients != expected)
     {
-      logger.severe("Releasing connection while other clients connected, clients: "+clients);
+      logger.severe("Releasing connection while clients connected");
       return(false);
     }
 
@@ -232,7 +239,8 @@ public class Session
 
       try
       {
-        database.rollback();
+        if (!database.getAutoCommit())
+          database.rollback();
       }
       catch (Exception e)
       {
@@ -256,7 +264,10 @@ public class Session
     database.commit();
 
     if (scope == Scope.Transaction)
+    {
       disconnect(1);
+      clients--;
+    }
 
     return(true);
   }
@@ -267,8 +278,15 @@ public class Session
     if (database == null)
       return(false);
 
-    if (scope == Scope.Transaction) disconnect(1);
-    else                            database.rollback();
+    if (scope == Scope.Transaction)
+    {
+      clients--;
+      disconnect(0);
+    }
+    else
+    {
+      database.rollback();
+    }
 
     return(true);
   }
@@ -317,24 +335,24 @@ public class Session
   }
 
 
-  public int executeUpdate(String sql, ArrayList<BindValue> bindvalues) throws Exception
+  public int executeUpdate(String sql, ArrayList<BindValue> bindvalues, String dateform) throws Exception
   {
-    PreparedStatement stmt = database.prepare(sql,bindvalues);
+    PreparedStatement stmt = database.prepare(sql,bindvalues,dateform);
     return(database.executeUpdate(stmt));
   }
 
 
-  public Cursor executeUpdateWithReturnValues(String sql, ArrayList<BindValue> bindvalues) throws Exception
+  public Cursor executeUpdateWithReturnValues(String sql, ArrayList<BindValue> bindvalues, String dateform) throws Exception
   {
-    ReturnValueHandle hdl = database.prepareWithReturnValues(sql,bindvalues);
-    ResultSet         rset = database.executeUpdateWithReturnValues(hdl.stmt());
+    ReturnValueHandle hdl = database.prepareWithReturnValues(sql,bindvalues,dateform);
+    ResultSet         rset = database.executeUpdateWithReturnValues(hdl.stmt(),dateform);
     return(new Cursor(null,hdl.stmt(),rset,hdl.columns()));
   }
 
 
-  public Cursor executeQuery(String name, String sql, ArrayList<BindValue> bindvalues) throws Exception
+  public Cursor executeQuery(String name, String sql, ArrayList<BindValue> bindvalues, String dateform) throws Exception
   {
-    PreparedStatement stmt = database.prepare(sql,bindvalues);
+    PreparedStatement stmt = database.prepare(sql,bindvalues,dateform);
     ResultSet         rset = database.executeQuery(stmt);
 
     Cursor cursor = new Cursor(name,stmt,rset);
@@ -355,7 +373,7 @@ public class Session
       else formatter = DateTimeFormatter.ofPattern(dateform);
     }
 
-    CallableStatement stmt = database.prepareCall(sql,bindvalues);
+    CallableStatement stmt = database.prepareCall(sql,bindvalues,dateform);
     return(database.execute(stmt,bindvalues,timeconv,formatter));
   }
 
@@ -365,6 +383,12 @@ public class Session
     if (cursor.columns == null)
       cursor.columns = database.getColumNames(cursor.rset);
     return(cursor.columns);
+  }
+
+
+  public String[] getColumnTypes(Cursor cursor) throws Exception
+  {
+    return(database.getColumTypes(cursor.rset));
   }
 
 

@@ -72,6 +72,7 @@ public class RestHandler extends Handler
     if (errm != null)
     {
       response.setBody(errm);
+      log(logger,request,response);
       return(response);
     }
 
@@ -126,7 +127,15 @@ public class RestHandler extends Handler
     response.setCookie("JSESSIONID",session);
 
     if (request.body() == null && request.method().equals("OPTIONS"))
+    {
+      if (request.method().equals("OPTIONS"))
+        response.setResponse(204);
+
+      if (logger.getLevel() == Level.FINE) logger.fine("/OPTIONS");
+      if (logger.getLevel() == Level.FINEST) log(logger,request,response);
+
       return(response);
+    }
 
     byte[] body = request.body();
     if (body == null) body = "{}".getBytes();
@@ -143,7 +152,9 @@ public class RestHandler extends Handler
 
     response.setBody(rest.execute(path,payload,returning));
 
-    log(logger,request,response);
+    if (!rest.isPing() || logger.getLevel() == Level.FINEST)
+      log(logger,request,response);
+
     return(response);
   }
 

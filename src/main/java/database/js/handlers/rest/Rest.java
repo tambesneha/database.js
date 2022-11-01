@@ -42,6 +42,8 @@ import static database.js.handlers.rest.JSONFormatter.Type.*;
 
 public class Rest
 {
+  private boolean ping;
+
   private final String host;
   private final String repo;
   private final Server server;
@@ -65,6 +67,8 @@ public class Rest
 
   public Rest(Server server, boolean savepoint, String host) throws Exception
   {
+    this.ping      = false;
+
     this.host      = host;
     this.savepoint = savepoint;
 
@@ -100,6 +104,11 @@ public class Rest
       failed = true;
       return(error(e));
     }
+  }
+
+  public boolean isPing()
+  {
+    return(this.ping);
   }
 
 
@@ -250,7 +259,7 @@ public class Rest
         response = disconnect(); break;
 
       case "exec" :
-        {
+      {
           switch(request.func)
           {
             case "ddl" :
@@ -274,11 +283,14 @@ public class Rest
             case "update" :
               response = update(request.payload,returning); break;
 
+            case "delete" :
+              response = update(request.payload,returning); break;
+
             default : return(error("Unknown command "+request));
           }
 
           break;
-        }
+      }
 
       default :
         failed = true;
@@ -293,16 +305,20 @@ public class Rest
   {
     try
     {
+      this.ping = true;
       boolean keepalive = false;
 
       if (payload.has("keepalive"))
         keepalive = payload.getBoolean("keepalive");
 
       if (keepalive && state.session() == null)
-        return(error("keepalive cannot be used without a valid session"));
+        return(error("keepalive failed, session does not exist"));
 
       if (keepalive)
         state.session().touch();
+
+      if (state.session() != null)
+        state.release();
     }
     catch (Throwable e)
     {
@@ -528,6 +544,7 @@ public class Rest
       int rows = 0;
       int skip = 0;
       String curname = null;
+      boolean describe = false;
       boolean compact = this.compact;
       String dateform = this.dateform;
 
@@ -536,6 +553,7 @@ public class Rest
 
       if (payload.has("rows")) rows = payload.getInt("rows");
       if (payload.has("skip")) skip = payload.getInt("skip");
+      if (payload.has("describe")) describe = payload.getBoolean("describe");
 
       if (payload.has("dateformat"))
       {
@@ -566,13 +584,14 @@ public class Rest
       state.prepare(payload);
 
       state.lock();
-      Cursor cursor = state.session().executeQuery(curname,sql,bindvalues);
+      Cursor cursor = state.session().executeQuery(curname,sql,bindvalues,dateform);
       state.unlock();
 
       cursor.rows = rows;
       cursor.compact = compact;
       cursor.dateformat = dateform;
 
+      String[] types = state.session().getColumnTypes(cursor);
       String[] columns = state.session().getColumnNames(cursor);
       ArrayList<Object[]> table = state.session().fetch(cursor,skip);
 
@@ -582,6 +601,13 @@ public class Rest
 
       json.success(true);
       json.add("more",!cursor.closed);
+
+      if (describe)
+      {
+        json.push("types",SimpleArray);
+        json.add(types);
+        json.pop();
+      }
 
       if (compact)
       {
@@ -623,6 +649,14 @@ public class Rest
 
     try
     {
+      String dateform = this.dateform;
+
+      if (payload.has("dateformat"))
+      {
+        if (payload.isNull("dateformat")) dateform = null;
+        else dateform = payload.getString("dateformat");
+      }
+
       if (payload.has("bindvalues"))
         this.getBindValues(payload.getJSONArray("bindvalues"));
 
@@ -646,9 +680,10 @@ public class Rest
       if (returning)
       {
         state.lock();
-        Cursor cursor = state.session().executeUpdateWithReturnValues(sql,bindvalues);
+        Cursor cursor = state.session().executeUpdateWithReturnValues(sql,bindvalues,dateform);
         state.unlock();
 
+        cursor.dateformat = dateform;
         JSONFormatter json = new JSONFormatter();
 
         String[] columns = state.session().getColumnNames(cursor);
@@ -656,6 +691,7 @@ public class Rest
 
         state.release();
         json.success(true);
+        json.add("affected",table.size());
 
         json.push("rows",ObjectArray);
         for(Object[] row : table) json.add(columns,row);
@@ -666,7 +702,7 @@ public class Rest
       else
       {
         state.lock();
-        int rows = state.session().executeUpdate(sql,bindvalues);
+        int rows = state.session().executeUpdate(sql,bindvalues,dateform);
         state.unlock();
 
         state.release();
@@ -674,7 +710,7 @@ public class Rest
         JSONFormatter json = new JSONFormatter();
 
         json.success(true);
-        json.add("rows",rows);
+        json.add("affected",rows);
 
         return(json.toString());
       }
@@ -697,10 +733,13 @@ public class Rest
 
     try
     {
-      String dateconv = null;
+      String dateform = this.dateform;
 
-      if (payload.has("dateconversion"))
-        dateconv = payload.getString("dateconversion");
+      if (payload.has("dateformat"))
+      {
+        if (payload.isNull("dateformat")) dateform = null;
+        else dateform = payload.getString("dateformat");
+      }
 
       if (payload.has("bindvalues"))
         this.getBindValues(payload.getJSONArray("bindvalues"));
@@ -723,7 +762,7 @@ public class Rest
       state.prepare(payload);
 
       state.lock();
-      ArrayList<NameValuePair<Object>> values = state.session().executeCall(sql,bindvalues,dateconv);
+      ArrayList<NameValuePair<Object>> values = state.session().executeCall(sql,bindvalues,dateform);
       state.unlock();
 
       state.release();
