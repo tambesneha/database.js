@@ -216,6 +216,8 @@ public class Session
     }
     catch (Throwable e)
     {
+      database = null;
+
       if (pool != null)
         pool.validate();
 
@@ -226,12 +228,8 @@ public class Session
 
   private synchronized boolean disconnect(int expected)
   {
-    logger.severe("disconnect expected: "+expected+" clients: "+clients);
     if (expected >= 0 && clients != expected)
-    {
       logger.severe("Releasing connection while clients connected");
-      return(false);
-    }
 
     if (database != null)
     {
