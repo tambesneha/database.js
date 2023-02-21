@@ -2,6 +2,8 @@
 
 A REST API to connect a Javascript/Typescript application to a PostgreSQL or Oracle database.
 
+![Blocks](img/blocks.png)
+
 ## Installation
 
 Unpack the compiled java program [database.js.zip](downloads/database.js.zip):
