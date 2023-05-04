@@ -52,6 +52,10 @@ import static database.js.handlers.rest.JSONFormatter.Type.*;
 public class Rest
 {
   private boolean ping;
+  private boolean conn;
+
+  private final String ftok;
+  private final String ptok;
 
   private final String host;
   private final String repo;
@@ -77,6 +81,7 @@ public class Rest
   public Rest(Server server, boolean savepoint, String host) throws Exception
   {
     this.ping      = false;
+    this.conn      = false;
 
     this.host      = host;
     this.savepoint = savepoint;
@@ -90,15 +95,53 @@ public class Rest
     this.validator = config.getDatabase().validator;
     this.dateform  = config.getDatabase().dateformat;
     this.repo      = config.getDatabase().repository;
+
+    this.ftok      = config.getDatabase().fixed.token();
+    this.ptok      = config.getDatabase().proxy.token();
   }
 
 
   public String execute(String path, String payload, boolean returning)
   {
+    boolean stateless = false;
+
     try
     {
       Request request = new Request(this,path,payload);
-      state.session(SessionManager.get(request.session));
+      Session session = SessionManager.get(request.session);
+
+      if (request.session != null)
+      {
+        if (request.session.equals(ftok))
+        {
+          stateless = true;
+          Pool pool = config.getDatabase().fixed;
+          session = new Session(config,AuthMethod.PoolToken,pool,"none",null,ftok);
+          state.session(session);
+        }
+
+        else
+
+        if (request.session.equals(ptok))
+        {
+          stateless = true;
+          String username = null;
+          Pool pool = config.getDatabase().proxy;
+
+          if (request.payload.has("username"))
+            username = request.payload.getString("username");
+
+          if (username == null)
+            return(state.release(new Exception("Missing username for proxy pool")));
+
+          session = new Session(config,AuthMethod.PoolToken,pool,"none",username,ptok);
+          state.session(session);
+        }
+
+        else
+
+        state.session(session);
+      }
 
       if (request.nvlfunc().equals("batch"))
         return(batch(request.payload));
@@ -106,7 +149,12 @@ public class Rest
       if (request.nvlfunc().equals("script"))
         return(script(request.payload));
 
-      return(exec(request,returning));
+      String response = exec(request,returning);
+
+      if (stateless)
+        session.release(failed);
+
+      return(response);
     }
     catch (Throwable e)
     {
@@ -115,9 +163,28 @@ public class Rest
     }
   }
 
+
+  public String getFixedToken()
+  {
+    return(this.ftok);
+  }
+
+
+  public String getProxyToken()
+  {
+    return(this.ptok);
+  }
+
+
   public boolean isPing()
   {
     return(this.ping);
+  }
+
+
+  public boolean isConnectRequest()
+  {
+    return(this.conn);
   }
 
 
@@ -357,6 +424,7 @@ public class Rest
   {
     int timeout = 0;
     Pool pool = null;
+    this.conn = true;
     String type = null;
     String scope = null;
     String secret = null;
@@ -443,16 +511,28 @@ public class Rest
         if (usepool)
         {
           if (!anonymous) pool = config.getDatabase().proxy;
-          else            pool = config.getDatabase().anonymous;
+          else            pool = config.getDatabase().fixed;
 
           if (pool == null)
             return(error("Connection pool not configured"));
         }
 
-        state.session(new Session(method,pool,scope,username,secret));
+        state.session(new Session(config,method,pool,scope,username,secret));
 
         state.session().connect(state.batch());
         if (state.batch()) state.session().share();
+
+        if (!usepool && Session.forcePool(scope))
+        {
+          pool = config.getDatabase().proxy;
+
+          if (pool == null)
+            return(error("Connection pool not configured"));
+
+          state.session().setPool(pool);
+          state.session().setSecret(pool.token());
+          state.session().setMethod(AuthMethod.PoolToken);
+        }
       }
     }
     catch (Throwable e)
@@ -1256,7 +1336,7 @@ public class Rest
     Rest rest;
     int dept = 0;
     int shared = 0;
-    Session session;
+    Session session = null;
     boolean exclusive = false;
     Savepoint savepoint = null;
 
@@ -1297,7 +1377,7 @@ public class Rest
       {
         boolean savepoint = rest.getSavepoint(payload);
 
-        if (savepoint)
+        if (savepoint && !session.autocommit())
         {
           lock(true);
           this.savepoint = session.setSavePoint();

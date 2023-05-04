@@ -111,7 +111,17 @@ class HTTPWaiter extends Thread
         {
           add = true;
           connected.add(client);
-          client.channel().register(selector,SelectionKey.OP_READ,client);
+
+          try
+          {
+            if (client.channel().isOpen())
+              client.channel().register(selector,SelectionKey.OP_READ,client);
+          }
+          catch (Exception e)
+          {
+            e.printStackTrace();
+            connected.remove(client);
+          }
         }
 
         queue.clear();

@@ -45,7 +45,7 @@ public class Database
   public final SQLValidator validator;
 
   public final Pool proxy;
-  public final Pool anonymous;
+  public final Pool fixed;
 
   public final DatabaseType type;
   public final ArrayList<String> urlparts;
@@ -120,7 +120,7 @@ public class Database
     //*********************  Pool Section  *********************
 
     this.proxy = getPool("proxy",section,true);
-    this.anonymous = getPool("anonymous",section,false);
+    this.fixed = getPool("fixed",section,false);
   }
 
 
@@ -135,12 +135,13 @@ public class Database
     int min = Config.get(pconf,"min");
     int max = Config.get(pconf,"max");
     int idle = Config.get(pconf,"idle");
+    int busy = Config.get(pconf,"busy");
 
     String usr = Config.get(pconf,"username");
     String pwd = Config.get(pconf,"password");
     String secret = Config.get(pconf,"auth.secret");
 
-    return(new Pool(proxy,secret,usr,pwd,min,max,idle));
+    return(new Pool(proxy,secret,usr,pwd,min,max,idle,busy));
   }
 
 
